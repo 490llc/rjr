@@ -114,7 +114,7 @@ class AMQP < RJR::Node
       @listening = true
       @queue.subscribe do |metadata, msg|
         # swap reply to and routing key
-        handle_message(msg, {:routing_key => metadata.reply_to, :reply_to => @queue_name})
+        handle_message(msg, {:routing_key => metadata.reply_to, :reply_to => @queue_name, :correlation_id => metadata.correlation_id})
       end
     }
     nil
@@ -147,11 +147,13 @@ class AMQP < RJR::Node
   def send_msg(msg, metadata, &on_publish)
     @amqp_lock.synchronize {
       #raise RJR::Errors::ConnectionError.new("client unreachable") if @disconnected
-      routing_key = metadata[:routing_key]
-      reply_to    = metadata[:reply_to]
+      routing_key    = metadata[:routing_key]
+      reply_to       = metadata[:reply_to]
+      correlation_id = metadata[:correlation_id]
       @exchange.publish msg,
                         :routing_key => routing_key,
-                        :reply_to => reply_to do |*cargs|
+                        :reply_to => reply_to,
+                        :correlation_id => correlation_id do |*cargs|
         on_publish.call unless on_publish.nil?
       end
     }
@@ -189,7 +191,7 @@ class AMQP < RJR::Node
     @@em.schedule do
       init_node {
         subscribe # begin listening for result
-        send_msg(message.to_s, :routing_key => routing_key, :reply_to => @queue_name)
+        send_msg(message.to_s, :routing_key => routing_key, :reply_to => @queue_name, :correlation_id => message.msg_id)
       }
     end
 
@@ -224,7 +226,7 @@ class AMQP < RJR::Node
                                          :headers => @message_headers
     @@em.schedule do
       init_node {
-        send_msg(message.to_s, :routing_key => routing_key, :reply_to => @queue_name){
+        send_msg(message.to_s, :routing_key => routing_key, :reply_to => @queue_name, :correlation_id => message.msg_id){
           published_l.synchronize { invoked = true ; published_c.signal }
         }
       }
