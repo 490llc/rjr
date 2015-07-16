@@ -58,12 +58,14 @@ class AMQP < RJR::Node
 
   def amqp_options
     opts = {}
-    opts[:host]  = @host  if @host
-    opts[:port]  = @port  if @port
-    opts[:vhost] = @vhost if @vhost
-    opts[:user]  = @user  if @user
-    opts[:pass]  = @pass  if @pass
-    opts[:ssl]   = @ssl   if @ssl
+    opts[:host]      = @host        if @host
+    opts[:port]      = @port        if @port
+    opts[:vhost]     = @vhost       if @vhost
+    opts[:user]      = @user        if @user
+    opts[:pass]      = @pass        if @pass
+    opts[:ssl]       = @ssl         if @ssl
+    opts[:heartbeat] = @heartbeat   if @heartbeat
+    opts[:logging]   = @logging     if @logging
     opts
   end
 
@@ -134,6 +136,8 @@ class AMQP < RJR::Node
      @user          = args[:user] || args[:username]
      @pass          = args[:pass] || args[:password]
      @ssl           = args[:ssl]
+     @logging       = args[:logging]
+     @heartbeat     = args[:heartbeat]
      @amqp_lock     = Mutex.new
   end
 
