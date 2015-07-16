@@ -10,7 +10,7 @@ gem 'eventmachine_httpserver'
 gem 'em-http-request', '~> 1.0.3'
 gem 'em-websocket'
 gem 'em-websocket-client', '>= 0.1.2'
-#gem 'amqp'
+#gem 'bunny'
 
 group :test do
   gem 'rake'

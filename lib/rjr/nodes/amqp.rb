@@ -7,7 +7,7 @@
 
 skip_module = false
 begin
-require 'amqp'
+require 'bunny'
 rescue LoadError
   skip_module = true
 end
@@ -76,34 +76,30 @@ class AMQP < RJR::Node
        return
      end
 
-     @conn = ::AMQP.connect(amqp_options) do |conn|
-       ::AMQP.connection = conn # XXX not sure why this is needed but the amqp
-                                # em interface won't shut down cleanly otherwise
+     @conn = ::Bunny.new(amqp_options)
+     @conn.start
 
-       conn.on_tcp_connection_failure { puts "OTCF #{@node_id}" }
+     ### connect to qpid broker
+     @channel = @conn.create_channel
 
-       ### connect to qpid broker
-       @channel = ::AMQP::Channel.new(conn)
+     # qpid constructs that will be created for node
+     @queue_name  = "#{@node_id.to_s}-queue"
+     @queue       = @channel.queue(@queue_name, :exclusive => true)
+     @exchange    = @channel.default_exchange
 
-       # qpid constructs that will be created for node
-       @queue_name  = "#{@node_id.to_s}-queue"
-       @queue       = @channel.queue(@queue_name, :auto_delete => true)
-       @exchange    = @channel.default_exchange
+     @listening = false
+     #@disconnected = false
 
-       @listening = false
-       #@disconnected = false
-
-       @exchange.on_return do |basic_return, metadata, payload|
-           puts "#{payload} was returned! reply_code = #{basic_return.reply_code}, reply_text = #{basic_return.reply_text}"
-           #@disconnected = true # FIXME member will be set on wrong class
-           # TODO these are only run when we fail to send message to queue,
-           # need to detect when that queue is shutdown & other events
-           connection_event(:error)
-           connection_event(:closed)
-       end
-
-       on_init.call
+     @exchange.on_return do |basic_return, metadata, payload|
+         puts "#{payload} was returned! reply_code = #{basic_return.reply_code}, reply_text = #{basic_return.reply_text}"
+         #@disconnected = true # FIXME member will be set on wrong class
+         # TODO these are only run when we fail to send message to queue,
+         # need to detect when that queue is shutdown & other events
+         connection_event(:error)
+         connection_event(:closed)
      end
+
+     on_init.call
   end
 
   # Internal helper, subscribe to messages using the amqp queue
@@ -114,7 +110,7 @@ class AMQP < RJR::Node
 
     @amqp_lock.synchronize {
       @listening = true
-      @queue.subscribe do |metadata, msg|
+      @queue.subscribe do |delivery_info, metadata, msg|
         # swap reply to and routing key
         handle_message(msg, {:routing_key => metadata.reply_to, :reply_to => @queue_name, :correlation_id => metadata.correlation_id})
       end
